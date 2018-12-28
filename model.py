@@ -26,14 +26,6 @@ class LSTM_with_embedding(nn.Module):
     
     self.emb_weight = nn.Parameter(
       torch.randn(num_word, embedding_size, dtype=torch.float32, requires_grad=True))
-    
-    # if cuda:
-    #   self.emb_weight = nn.Parameter(
-    #     torch.randn(num_word, embedding_size, dtype=torch.float32, requires_grad=True).cuda())
-    # else:
-    #   self.emb_weight = nn.Parameter(
-    #     torch.randn(num_word, embedding_size, dtype=torch.float32, requires_grad=True))
-    
     self.lstm = nn.LSTM(input_size=embedding_size, hidden_size=hidden_size, num_layers=num_layer, batch_first=True)
     self.softmax = softmax_layer(in_features=hidden_size, out_features=num_word)
   

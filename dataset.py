@@ -12,11 +12,11 @@ class poem_dataset_class(Dataset):
   def __init__(self, fname='data/poems.datatxt', has_test=False, split_ratio=0.8):
     super(poem_dataset_class, self).__init__()
     len_limit = {'short': 10, 'long': 512}
-    invalid_ch = [u'_', u'(', u'（', u'《', u'[']
+    invalid_ch = [u'_', u'(', u'（', u'《', u'[', u'*', u'{']
+    sep_ch = [u'，', u'。', u'？', u'！']
     
     poems = []
     assert os.path.exists(fname)
-    debug_num = 1000
     for line in open(fname, 'r', encoding='utf-8').readlines():
       _, _, content = line.strip().split('::')
       content = content.replace(u' ', u'')
@@ -24,12 +24,9 @@ class poem_dataset_class(Dataset):
         continue
       if any([ch in content for ch in invalid_ch]):
         continue
-      content = u'[' + content + ']'
-      poems.append(content)
-      
-      # debug_num -= 1
-      # if not debug_num:
-      #   break
+      for sep in sep_ch:
+        content = content.replace(sep, u'|')
+      poems.extend([x + u' ' for x in content.split(u'|') if len(x) > 0])
     
     word_cnt = Counter()
     for poem in poems:
@@ -75,7 +72,7 @@ class poem_dataset_class(Dataset):
 
 if __name__ == '__main__':
   dataset = poem_dataset_class()
-  loader = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=True, collate_fn=dataset.collate_fn)
+  loader = torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=True, collate_fn=dataset.collate_fn)
   for data_iter in loader:
     callme = 1
   callme = 2
