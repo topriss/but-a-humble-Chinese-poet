@@ -27,9 +27,9 @@ class poem_dataset_class(Dataset):
       content = u'[' + content + ']'
       poems.append(content)
       
-      debug_num -= 1
-      if not debug_num:
-        break
+      # debug_num -= 1
+      # if not debug_num:
+      #   break
     
     word_cnt = Counter()
     for poem in poems:

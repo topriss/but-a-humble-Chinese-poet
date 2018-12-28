@@ -25,20 +25,20 @@ def infer(model, dataset, start=u'月'):
   c = torch.zeros(model.num_layer, 1, model.hidden_size)
   x = nn.functional.embedding(
     torch.full(size=(1, 1), fill_value=dataset.word2scalar[start], dtype=torch.long),
-    model.emb_weight
+    model.emb_weight.cpu()
   )
   if args.cuda:
     x, h, c = x.cuda(), h.cuda(), c.cuda()
   
   max_len = 33
-  poem = [start]
+  poem = start
   while True:
     x, (h, c) = model.lstm(x, (h, c))
     x_prob = np.squeeze(model.softmax(x).data.cpu().numpy())
     word = dataset.words[prob_sample(x_prob)]
     if word in [u' ', u']'] or len(poem) >= max_len:
       break
-    poem.append(word)
+    poem += word
     # print(poem)
   
   return poem
@@ -47,7 +47,7 @@ def infer(model, dataset, start=u'月'):
 def main():
   dataset = poem_dataset_class()
   loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch, shuffle=True, collate_fn=dataset.collate_fn)
-  model = LSTM_with_embedding(num_word=dataset.num_words)
+  model = LSTM_with_embedding(num_word=dataset.num_words, cuda=args.cuda)
   if args.cuda:
     model = model.cuda()
   opt = torch.optim.Adam(list(model.parameters()))
@@ -88,6 +88,7 @@ if __name__ == '__main__':
   parser.add_argument("--cuda", action='store_true', help="whether to use cuda")
   args = parser.parse_args()
   args.cuda = args.cuda and torch.cuda.is_available()
+  args.cuda = True
   print(args)
   
   main()

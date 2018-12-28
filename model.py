@@ -16,7 +16,7 @@ class softmax_layer(nn.Module):
 
 
 class LSTM_with_embedding(nn.Module):
-  def __init__(self, num_word=None, embedding_size=128, hidden_size=128, num_layer=2):
+  def __init__(self, num_word=None, embedding_size=128, hidden_size=128, num_layer=2, cuda=False):
     super(LSTM_with_embedding, self).__init__()
     assert num_word is not None
     self.num_word = num_word
@@ -24,7 +24,16 @@ class LSTM_with_embedding(nn.Module):
     self.hidden_size = hidden_size
     self.num_layer = num_layer
     
-    self.emb_weight = nn.Parameter(torch.randn(num_word, embedding_size, dtype=torch.float32, requires_grad=True))
+    self.emb_weight = nn.Parameter(
+      torch.randn(num_word, embedding_size, dtype=torch.float32, requires_grad=True))
+    
+    # if cuda:
+    #   self.emb_weight = nn.Parameter(
+    #     torch.randn(num_word, embedding_size, dtype=torch.float32, requires_grad=True).cuda())
+    # else:
+    #   self.emb_weight = nn.Parameter(
+    #     torch.randn(num_word, embedding_size, dtype=torch.float32, requires_grad=True))
+    
     self.lstm = nn.LSTM(input_size=embedding_size, hidden_size=hidden_size, num_layers=num_layer, batch_first=True)
     self.softmax = softmax_layer(in_features=hidden_size, out_features=num_word)
   
