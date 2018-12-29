@@ -13,12 +13,12 @@ from model import LSTM_with_embedding
 
 
 def prob_sample(weight, top_n=100):
-  idx = np.argsort(weight)[:-1]
+  idx = np.argsort(-weight)[:-1]  # big first
   t = np.cumsum(weight[idx[:top_n]])
   s = np.sum(weight[idx[:top_n]])
   pos = np.searchsorted(t, s * np.random.rand(1))[0]
   
-  return idx[pos]
+  return idx[pos], idx[:top_n], t / s
 
 
 def infer(model, dataset, start=u'月'):
@@ -31,12 +31,19 @@ def infer(model, dataset, start=u'月'):
   if args.cuda:
     x, h, c = x.cuda(), h.cuda(), c.cuda()
   
-  max_len = 33
+  max_len = 10
   poem = start
   while True:
     x, (h, c) = model.lstm(x, (h, c))
     x_prob = np.squeeze(model.softmax(x).data.cpu().numpy())
-    word = dataset.words[prob_sample(x_prob)]
+    i_select, i_all, cum_prob = prob_sample(x_prob)
+    # word = dataset.words[i_select]
+    while True:
+      i_rand = i_all[np.random.randint(0, len(i_all))]
+      if i_rand < 3000:  # filter out uncommon word
+        break
+    word = dataset.words[i_rand]
+    print(u"\'{}\' from {}".format(word, [dataset.words[i] + ':' + str(cp) for i, cp in zip(i_all, cum_prob)]))
     if word in [u' ', u']'] or len(poem) >= max_len:
       break
     poem += word
@@ -46,14 +53,41 @@ def infer(model, dataset, start=u'月'):
 
 
 def main():
+  # data
   dataset = poem_dataset_class()
   loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch, shuffle=True, num_workers=6,
                                        collate_fn=dataset.collate_fn)
-  model = LSTM_with_embedding(num_word=dataset.num_words, cuda=args.cuda)
+  # model
+  model = LSTM_with_embedding(num_word=dataset.num_words)
+  if os.path.exists(args.load):
+    print("loading checkpoint \'{}\'".format(args.load))
+    model.parameterize()
+    model.load_state_dict(torch.load(args.load, map_location=torch.device('cpu')))
+  if os.path.exists(args.pre_emb):
+    print("loading embedding \'{}\'".format(args.pre_emb))
+    with open(args.pre_emb, 'r', encoding='utf-8') as femb:
+      emb_dim = int(femb.readline().strip().split()[1])
+      assert emb_dim == model.embedding_size
+      for line in femb.readlines():
+        emb = line.strip().split()
+        word = emb.pop(0)
+        if word in dataset.word2scalar:
+          model.emb_weight[dataset.word2scalar[word]] = torch.tensor(list(map(float, emb)), dtype=torch.float)
+    model.parameterize()
   if args.cuda:
     model = model.cuda()
-  opt = torch.optim.Adam(list(model.parameters()))
   
+  # just infer
+  if args.just_infer:
+    while True:
+      print(infer(model, dataset))
+      callme = 1
+    return
+    
+    # schedule
+  opt = torch.optim.Adam(list(model.parameters()), lr=args.lr)
+  
+  # main loop
   for ep in range(args.epoch):
     iter_data = tqdm.tqdm(enumerate(loader),
                           desc="epoch {}:\t\t".format(ep), total=len(loader), bar_format="{l_bar}{r_bar}")
@@ -71,12 +105,8 @@ def main():
       opt.step()
       
       if i % 1000 == 0:
-        state_dict = {
-          "epoch":   ep,
-          "iter":    i,
-          "loss":    loss.item(),
-          "example": infer(model, dataset)
-        }
+        state_dict = {"epoch":   ep, "iter": i, "loss": loss.item(),
+                      "example": infer(model, dataset)}
         iter_data.write(str(state_dict))
       ep_loss.append(loss.item())
     
@@ -96,11 +126,21 @@ def main():
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument("--epoch", type=int, default=10000, help="number of epochs")
-  parser.add_argument("--batch", type=int, default=128, help="batch size")
+  parser.add_argument("--batch", type=int, default=32, help="batch size")
   parser.add_argument("--cuda", action='store_true', help="whether to use cuda")
+  parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
+  parser.add_argument("--load", type=str, default='./checkpoint/first_success/best.ckp', help="check point to load")
+  parser.add_argument('--pre_emb', type=str, default='./data/wordembedding.datatxt',
+                      help='pre-trained embedding to load')
+  parser.add_argument('--just_infer', action='store_true', help='whether to just infer')
+  
   args = parser.parse_args()
-  args.cuda = args.cuda and torch.cuda.is_available()
-  args.cuda = True
+  # just for debug
+  args.pre_emb = 'does not exist'
+  # args.just_infer = True
+  
+  args.cuda = args.cuda and torch.cuda.is_available() and (not args.just_infer)
+  
   print(args)
   
   main()

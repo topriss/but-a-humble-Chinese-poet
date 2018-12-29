@@ -25,7 +25,8 @@ class poem_dataset_class(Dataset):
       if any([ch in content for ch in invalid_ch]):
         continue
       for sep in sep_ch:
-        content = content.replace(sep, u'|')
+        # content = content.replace(sep, u'|')
+        content = content.replace(sep, u'')
       poems.extend([x + u' ' for x in content.split(u'|') if len(x) > 0])
     
     word_cnt = Counter()
