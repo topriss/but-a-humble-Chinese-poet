@@ -2,6 +2,7 @@
 
 import os
 from collections import Counter
+import json
 
 import torch
 from torch.utils.data import Dataset
@@ -9,8 +10,13 @@ import torch.nn.functional as F
 
 
 class poem_dataset_class(Dataset):
-  def __init__(self, fname='data/poems.datatxt', has_test=False, split_ratio=0.8):
+  def __init__(self, fname='data/poems.datatxt', has_test=False, load_reduced=False):
     super(poem_dataset_class, self).__init__()
+    
+    if load_reduced:
+      self.load_json()
+      return
+    
     len_limit = {'short': 10, 'long': 512}
     invalid_ch = [u'_', u'(', u'（', u'《', u'[', u'*', u'{']
     sep_ch = [u'，', u'。', u'？', u'！']
@@ -25,8 +31,8 @@ class poem_dataset_class(Dataset):
       if any([ch in content for ch in invalid_ch]):
         continue
       for sep in sep_ch:
-        # content = content.replace(sep, u'|')
-        content = content.replace(sep, u'')
+        content = content.replace(sep, u'|')
+        # content = content.replace(sep, u'')
       poems.extend([x + u' ' for x in content.split(u'|') if len(x) > 0])
     
     word_cnt = Counter()
@@ -69,11 +75,30 @@ class poem_dataset_class(Dataset):
         rst_batch[j, i] = rst_sp[j]
     
     return rst_batch
+  
+  def save_json(self, fname='./data/reduced_data.json'):
+    state_dict = {
+      'filler':      self.filler,
+      'num_words':   self.num_words,
+      'words':       self.words,
+      'word2scalar': self.word2scalar
+    }
+    tmp_str = json.dumps(state_dict, ensure_ascii=False, indent=2)
+    open(fname, 'w', encoding='utf-8').write(tmp_str)
+  
+  def load_json(self, fname='./data/reduced_data.json'):
+    state_dict = json.load(open(fname, 'r', encoding='utf-8'))
+    self.filler = state_dict['filler']
+    self.num_words = state_dict['num_words']
+    self.words = state_dict['words']
+    self.word2scalar = state_dict['word2scalar']
 
 
 if __name__ == '__main__':
+  # dataset = poem_dataset_class(load_reduced=True)
   dataset = poem_dataset_class()
   loader = torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=True, collate_fn=dataset.collate_fn)
+  dataset.save_json()
   for data_iter in loader:
     callme = 1
   callme = 2
